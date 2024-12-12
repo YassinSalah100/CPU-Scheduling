@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import {  Flame, Clock, Settings, CodeXml, BarChart3, Play, Pause,  Plus, Minus, Save, FileText, RefreshCw, ChevronRight } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { useState } from 'react';
+import {  BarChart3, Play,Plus, Minus, Save, FileText } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,  ResponsiveContainer } from 'recharts';
+
 
 class SchedulingAlgorithm {
   static FCFS(processes) {
@@ -39,6 +40,7 @@ const ProcessGanttChart = ({ processes, simulationResults }) => {
   if (!simulationResults) return null;
 
   return (
+    
     <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
       <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
         <BarChart3 /> Process Execution Timeline
@@ -81,6 +83,7 @@ const ProcessGanttChart = ({ processes, simulationResults }) => {
 
 // Main Advanced CPU Scheduling Simulator
 const CPUSchedulerSimulator = () => {
+  
   const [algorithm, setAlgorithm] = useState('FCFS');
   const [processes, setProcesses] = useState([
     { id: 1, arrivalTime: 0, burstTime: 10, priority: 3 },
@@ -132,32 +135,72 @@ const CPUSchedulerSimulator = () => {
   };
 
   // Advanced Logo with Animated Gradient
-  const AdvancedLogo = () => (
-    <svg viewBox="0 0 200 100" className="w-40 h-20">
+  
+const AdvancedLogo = () => {
+  return (
+    <svg viewBox="0 0 300 150" className="w-64 h-32">
+      {/* Gradient and Shadow Definitions */}
       <defs>
-        <linearGradient id="animatedGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <animate 
-            attributeName="x1" 
-            values="0%;100%" 
-            dur="3s" 
-            repeatCount="indefinite" 
-          />
-          <stop offset="0%" stopColor="#3494E6" />
-          <stop offset="100%" stopColor="#EC6EAD" />
+        <linearGradient id="processGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#3494E6" stopOpacity="1" />
+          <stop offset="100%" stopColor="#EC6EAD" stopOpacity="1" />
         </linearGradient>
+        
+        <filter id="logoShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="4" />
+          <feOffset dx="4" dy="4" result="offsetblur"/>
+          <feFlood floodColor="rgba(0,0,0,0.3)"/>
+          <feComposite in2="offsetblur" operator="in"/>
+          <feMerge>
+            <feMergeNode/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
       </defs>
+
+      {/* Main Logo Text with Advanced Effects */}
       <text 
-        x="50%" 
-        y="60%" 
+        x="170" 
+        y="100" 
         textAnchor="middle" 
-        fill="url(#animatedGradient)" 
+        fontSize="70" 
         fontWeight="bold" 
-        fontSize="40"
+        fill="url(#processGradient)"
+        strokeWidth="2"
+        stroke="rgba(255,255,255,0.3)"
       >
-        SchedSim
+      CPUSim
       </text>
+
+      {/* Animated Circuit-like Elements */}
+      <path 
+        d="M 50 30 L 80 30 Q 90 30, 90 40 L 90 60 Q 90 70, 100 70 L 200 70 Q 210 70, 210 60 L 210 40 Q 210 30, 220 30 L 250 30" 
+        fill="none" 
+        stroke="rgba(52,148,230,0.3)" 
+        strokeWidth="3" 
+        strokeDasharray="10 5"
+      >
+        <animate 
+          attributeName="stroke-dashoffset" 
+          values="30;0" 
+          dur="3s" 
+          repeatCount="indefinite"
+        />
+      </path>
+      
+      {/* Circuit Points */}
+      {[50, 100, 200, 250].map((x, index) => (
+        <circle 
+          key={index} 
+          cx={x} 
+          cy="30" 
+          r="5" 
+          fill="rgba(52,148,230,0.6)" 
+        />
+      ))}
     </svg>
   );
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 p-6">
@@ -344,5 +387,6 @@ const CPUSchedulerSimulator = () => {
     </div>
   );
 };
+
 
 export default CPUSchedulerSimulator;
