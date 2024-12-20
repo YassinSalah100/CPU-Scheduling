@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import {  BarChart3, Play,Plus, Minus, Save, FileText } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,  ResponsiveContainer } from 'recharts';
-
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import AdvancedCPUBackground from './AdvancedCPUBackground';
 
 class SchedulingAlgorithm {
+  // First Come First Serve (FCFS)
   static FCFS(processes) {
+    const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
     let currentTime = 0;
-    const processResults = processes.map(process => {
+    
+    return this.calculateMetrics(sortedProcesses.map(process => {
       const startTime = Math.max(currentTime, process.arrivalTime);
       const waitingTime = startTime - process.arrivalTime;
-      const turnaroundTime = waitingTime + process.burstTime;
       currentTime = startTime + process.burstTime;
       
       return {
@@ -17,16 +19,207 @@ class SchedulingAlgorithm {
         startTime,
         completionTime: currentTime,
         waitingTime,
-        turnaroundTime,
+        turnaroundTime: waitingTime + process.burstTime,
         responseTime: waitingTime
       };
-    });
+    }));
+  }
+
+  // Non-preemptive Shortest Job First (SJF)
+  static SJF(processes) {
+    const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
+    let currentTime = sortedProcesses[0].arrivalTime;
+    let completed = [];
+    let remaining = [...sortedProcesses];
+
+    while (remaining.length > 0) {
+      // Find available processes
+      const available = remaining.filter(p => p.arrivalTime <= currentTime);
+      
+      if (available.length === 0) {
+        currentTime = Math.min(...remaining.map(p => p.arrivalTime));
+        continue;
+      }
+
+      // Select shortest job
+      const shortestJob = available.reduce((prev, curr) => 
+        prev.burstTime < curr.burstTime ? prev : curr
+      );
+
+      // Process the job
+      const waitingTime = currentTime - shortestJob.arrivalTime;
+      completed.push({
+        ...shortestJob,
+        startTime: currentTime,
+        completionTime: currentTime + shortestJob.burstTime,
+        waitingTime,
+        turnaroundTime: waitingTime + shortestJob.burstTime,
+        responseTime: waitingTime
+      });
+
+      currentTime += shortestJob.burstTime;
+      remaining = remaining.filter(p => p.id !== shortestJob.id);
+    }
+
+    return this.calculateMetrics(completed);
+  }
+
+  // Preemptive Shortest Job First (SRTF)
+  static SRTF(processes) {
+    const events = [];
+    const completed = [];
+    let currentTime = 0;
+    let remaining = processes.map(p => ({ ...p, remainingTime: p.burstTime, startTime: null }));
+
+    while (remaining.length > 0) {
+      // Find available processes
+      const available = remaining.filter(p => p.arrivalTime <= currentTime);
+      
+      if (available.length === 0) {
+        currentTime = Math.min(...remaining.map(p => p.arrivalTime));
+        continue;
+      }
+
+      // Select process with shortest remaining time
+      const shortestJob = available.reduce((prev, curr) => 
+        prev.remainingTime < curr.remainingTime ? prev : curr
+      );
+
+      // Record first response time if not started
+      if (shortestJob.startTime === null) {
+        shortestJob.startTime = currentTime;
+        shortestJob.responseTime = currentTime - shortestJob.arrivalTime;
+      }
+
+      // Process for 1 time unit
+      events.push({ processId: shortestJob.id, startTime: currentTime, endTime: currentTime + 1 });
+      shortestJob.remainingTime--;
+      currentTime++;
+
+      // Check if process is completed
+      if (shortestJob.remainingTime === 0) {
+        completed.push({
+          ...shortestJob,
+          completionTime: currentTime,
+          turnaroundTime: currentTime - shortestJob.arrivalTime,
+          waitingTime: currentTime - shortestJob.arrivalTime - shortestJob.burstTime
+        });
+        remaining = remaining.filter(p => p.id !== shortestJob.id);
+      }
+    }
 
     return {
-      processResults,
-      avgWaitingTime: this.calculateAverage(processResults, 'waitingTime'),
-      avgTurnaroundTime: this.calculateAverage(processResults, 'turnaroundTime'),
-      avgResponseTime: this.calculateAverage(processResults, 'responseTime')
+      ...this.calculateMetrics(completed),
+      processResults: completed,
+      events // For visualization
+    };
+  }
+
+  // Round Robin
+  static RoundRobin(processes, timeQuantum = 2) {
+    const events = [];
+    const completed = [];
+    let currentTime = 0;
+    let remaining = processes.map(p => ({ 
+      ...p, 
+      remainingTime: p.burstTime, 
+      startTime: null,
+      firstResponse: null
+    }));
+    
+    while (remaining.length > 0) {
+      let processed = false;
+      
+      for (let i = 0; i < remaining.length; i++) {
+        const process = remaining[i];
+        
+        if (process.arrivalTime <= currentTime) {
+          // Record first response time
+          if (process.firstResponse === null) {
+            process.firstResponse = currentTime;
+            process.responseTime = currentTime - process.arrivalTime;
+          }
+
+          const executeTime = Math.min(timeQuantum, process.remainingTime);
+          events.push({
+            processId: process.id,
+            startTime: currentTime,
+            endTime: currentTime + executeTime
+          });
+
+          process.remainingTime -= executeTime;
+          currentTime += executeTime;
+          processed = true;
+
+          if (process.remainingTime === 0) {
+            completed.push({
+              ...process,
+              completionTime: currentTime,
+              turnaroundTime: currentTime - process.arrivalTime,
+              waitingTime: currentTime - process.arrivalTime - process.burstTime
+            });
+            remaining.splice(i, 1);
+            i--;
+          }
+        }
+      }
+
+      if (!processed) {
+        currentTime++;
+      }
+    }
+
+    return {
+      ...this.calculateMetrics(completed),
+      processResults: completed,
+      events // For visualization
+    };
+  }
+
+  // Priority Scheduling (Non-preemptive)
+  static Priority(processes) {
+    const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
+    let currentTime = sortedProcesses[0].arrivalTime;
+    let completed = [];
+    let remaining = [...sortedProcesses];
+
+    while (remaining.length > 0) {
+      const available = remaining.filter(p => p.arrivalTime <= currentTime);
+      
+      if (available.length === 0) {
+        currentTime = Math.min(...remaining.map(p => p.arrivalTime));
+        continue;
+      }
+
+      // Select highest priority process (lower number = higher priority)
+      const highestPriority = available.reduce((prev, curr) => 
+        prev.priority < curr.priority ? prev : curr
+      );
+
+      const waitingTime = currentTime - highestPriority.arrivalTime;
+      completed.push({
+        ...highestPriority,
+        startTime: currentTime,
+        completionTime: currentTime + highestPriority.burstTime,
+        waitingTime,
+        turnaroundTime: waitingTime + highestPriority.burstTime,
+        responseTime: waitingTime
+      });
+
+      currentTime += highestPriority.burstTime;
+      remaining = remaining.filter(p => p.id !== highestPriority.id);
+    }
+
+    return this.calculateMetrics(completed);
+  }
+
+  // Helper method to calculate average metrics
+  static calculateMetrics(results) {
+    return {
+      processResults: results,
+      avgWaitingTime: this.calculateAverage(results, 'waitingTime'),
+      avgTurnaroundTime: this.calculateAverage(results, 'turnaroundTime'),
+      avgResponseTime: this.calculateAverage(results, 'responseTime')
     };
   }
 
@@ -34,49 +227,173 @@ class SchedulingAlgorithm {
     return results.reduce((sum, proc) => sum + proc[key], 0) / results.length;
   }
 }
+// STEP 3: Replace the entire ProcessGanttChart component
+const ProcessGanttChart = ({ processes, simulationResults, algorithm }) => {
+  if (!simulationResults || !processes || processes.length === 0) return null;
 
-// Advanced Visualization Component
-const ProcessGanttChart = ({ processes, simulationResults }) => {
-  if (!simulationResults) return null;
+  const getChartData = () => {
+    try {
+      if (algorithm === 'FCFS' || algorithm === 'SJF (Non-Preemptive)' || algorithm === 'Priority') {
+        if (!Array.isArray(simulationResults.processResults)) {
+          console.error('Process results is not an array:', simulationResults.processResults);
+          return [];
+        }
+
+        return simulationResults.processResults
+          .sort((a, b) => a.startTime - b.startTime)
+          .map(proc => ({
+            name: `P${proc.id}`,
+            executionStart: proc.startTime,
+            executionEnd: proc.completionTime,
+            waitingTime: proc.waitingTime,
+            burstTime: proc.burstTime,
+            processColor: `hsl(${(proc.id * 137) % 360}, 70%, 50%)`
+          }));
+      } else {
+        if (!Array.isArray(simulationResults.events)) {
+          console.error('Events is not an array:', simulationResults.events);
+          return [];
+        }
+
+        return simulationResults.events
+          .sort((a, b) => a.startTime - b.startTime)
+          .map(event => ({
+            name: `P${event.processId}`,
+            executionStart: event.startTime,
+            executionEnd: event.endTime,
+            processColor: `hsl(${(event.processId * 137) % 360}, 70%, 50%)`
+          }));
+      }
+    } catch (error) {
+      console.error('Error in getChartData:', error);
+      return [];
+    }
+  };
+
+  const chartData = getChartData();
+  const maxTime = Math.max(...chartData.map(d => d.executionEnd));
+
+  // Create execution sequence with repetitions
+  const executionSequence = chartData.map((item, index) => ({
+    name: item.name,
+    start: item.executionStart,
+    end: item.executionEnd,
+    processColor: item.processColor,
+    sequenceId: index // Add a unique sequence ID for each execution
+  }));
+
+  // Sort by execution start time
+  executionSequence.sort((a, b) => {
+    if (a.start !== b.start) return a.start - b.start;
+    return a.sequenceId - b.sequenceId;
+  });
 
   return (
-    
-    <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
-      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <BarChart3 /> Process Execution Timeline
+    <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-xl p-6 mt-6">
+      <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-blue-800">
+        <BarChart3 className="text-blue-600" /> Process Execution Timeline
       </h3>
-      <ResponsiveContainer width="100%" height={200}>
-        <LineChart 
-          data={simulationResults.processResults.map(proc => ({
-            name: `P${proc.id}`,
-            startTime: proc.startTime,
-            completionTime: proc.completionTime,
-            burstTime: proc.burstTime
-          }))}
-        >
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis label={{ value: 'Time', angle: -90, position: 'insideLeft' }} />
-          <Tooltip 
-            content={({ active, payload }) => {
-              if (active && payload && payload.length) {
-                const data = payload[0].payload;
-                return (
-                  <div className="bg-white p-4 border rounded shadow">
-                    <p>Process: {data.name}</p>
-                    <p>Start Time: {data.startTime}</p>
-                    <p>Completion Time: {data.completionTime}</p>
-                    <p>Burst Time: {data.burstTime}</p>
-                  </div>
-                );
-              }
-              return null;
-            }}
-          />
-          <Line type="monotone" dataKey="startTime" stroke="#8884d8" activeDot={{ r: 8 }} />
-          <Line type="monotone" dataKey="completionTime" stroke="#82ca9d" />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className="h-[400px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={chartData}
+            margin={{ top: 20, right: 30, left: 60, bottom: 40 }}
+          >
+            <defs>
+              {processes.map((proc) => (
+                <linearGradient
+                  key={proc.id}
+                  id={`processGradient${proc.id}`}
+                  x1="0" y1="0" x2="0" y2="1"
+                >
+                  <stop offset="5%" stopColor={`hsl(${(proc.id * 137) % 360}, 70%, 50%)`} stopOpacity={0.8} />
+                  <stop offset="95%" stopColor={`hsl(${(proc.id * 137) % 360}, 70%, 50%)`} stopOpacity={0.2} />
+                </linearGradient>
+              ))}
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" className="opacity-50" />
+            <XAxis
+              dataKey="executionStart"
+              type="number"
+              domain={[0, maxTime]}
+              tickCount={10}
+              label={{ value: 'Time Units', position: 'bottom', offset: 20, style: { fill: '#4A5568', fontWeight: 'bold' } }}
+            />
+            <YAxis
+              type="category"
+              dataKey="name"
+              label={{ value: 'Process ID', angle: -90, position: 'insideLeft', offset: -40, style: { fill: '#4A5568', fontWeight: 'bold' } }}
+              tick={{ fill: '#4A5568', fontWeight: 'bold' }}
+            />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const data = payload[0].payload;
+                  return (
+                    <div className="bg-white p-4 border rounded-lg shadow-lg">
+                      <p className="font-bold text-lg text-blue-800 mb-2">{data.name}</p>
+                      <div className="space-y-1">
+                        <p className="text-gray-700">
+                          <span className="font-semibold">Start:</span> {data.executionStart}
+                        </p>
+                        <p className="text-gray-700">
+                          <span className="font-semibold">End:</span> {data.executionEnd}
+                        </p>
+                        {data.waitingTime !== undefined && (
+                          <p className="text-gray-700">
+                            <span className="font-semibold">Waiting Time:</span> {data.waitingTime}
+                          </p>
+                        )}
+                        {data.burstTime !== undefined && (
+                          <p className="text-gray-700">
+                            <span className="font-semibold">Burst Time:</span> {data.burstTime}
+                          </p>
+                        )}
+                        <p className="text-gray-700">
+                          <span className="font-semibold">Duration:</span> {data.executionEnd - data.executionStart}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px', fontWeight: 'bold' }} />
+            {chartData.map((entry, index) => (
+              <Area
+                key={index}
+                type="stepAfter"
+                dataKey="executionEnd"
+                stroke={entry.processColor}
+                fill={`url(#processGradient${entry.name.slice(1)})`}
+                fillOpacity={0.8}
+                strokeWidth={2}
+                stackId="1"
+                name={entry.name}
+                connectNulls={true}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      
+      {/* Updated Process Timeline Legend with Execution Sequence */}
+      <div className="mt-6 p-4 bg-white rounded-lg shadow">
+        <h4 className="font-bold text-gray-700 mb-2">Execution Sequence:</h4>
+        <div className="flex flex-wrap gap-4">
+          {executionSequence.map((process, index) => (
+            <div key={`${process.name}-${index}`} className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: process.processColor }} />
+              <span className="font-medium">{process.name}</span>
+              <span className="text-gray-500 text-sm">({process.start} - {process.end})</span>
+              {index < executionSequence.length - 1 && (
+                <span className="text-gray-400">→</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
@@ -93,6 +410,11 @@ const CPUSchedulerSimulator = () => {
   const [simulationResults, setSimulationResults] = useState(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
+  const [timeQuantum, setTimeQuantum] = useState(2); // Add time quantum state
+
+   // Add this new constant
+   const showPriority = algorithm === 'Priority';
+   const showTimeQuantum = algorithm === 'Round Robin'; // Add this line
 
   // Advanced Simulation Method
   const simulateScheduling = () => {
@@ -100,15 +422,40 @@ const CPUSchedulerSimulator = () => {
     
     // Sort processes by arrival time to ensure correct simulation
     const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
+     // Simulate based on selected algorithm
+      // Validate time quantum for Round Robin
+    if (algorithm === 'Round Robin' && (timeQuantum < 1 || timeQuantum > 20)) {
+      alert('Time quantum must be between 1 and 20');
+      setIsSimulating(false);
+      return;
+    }
+  let results;
+  switch (algorithm) {
+    case 'FCFS':
+      results = SchedulingAlgorithm.FCFS(sortedProcesses);
+      break;
+    case 'SJF (Non-Preemptive)':
+      results = SchedulingAlgorithm.SJF(sortedProcesses);
+      break;
+    case 'SJF (Preemptive)':
+      results = SchedulingAlgorithm.SRTF(sortedProcesses);
+      break;
+    case 'Round Robin':
+      results = SchedulingAlgorithm.RoundRobin(sortedProcesses, timeQuantum);
+      break;
+    case 'Priority':
+      results = SchedulingAlgorithm.Priority(sortedProcesses);
+      break;
+    default:
+      results = SchedulingAlgorithm.FCFS(sortedProcesses);
+  }
     
-    // Simulate based on selected algorithm
-    const results = SchedulingAlgorithm.FCFS(sortedProcesses);
     
     setTimeout(() => {
       setSimulationResults(results);
       setIsSimulating(false);
     }, 1500);
-  };
+ };
 
   // Process Management Functions with Advanced Validation
   const addProcess = () => {
@@ -136,75 +483,161 @@ const CPUSchedulerSimulator = () => {
 
   // Advanced Logo with Animated Gradient
   
-const AdvancedLogo = () => {
+  const AdvancedLogo = () => {
+    return (
+      <svg viewBox="0 0 400 200" className="w-72 h-36">
+        <defs>
+          {/* Metallic gradient for CPU */}
+          <linearGradient id="metallicGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#e8e8e8" />
+            <stop offset="50%" stopColor="#d4d4d4" />
+            <stop offset="100%" stopColor="#b8b8b8" />
+          </linearGradient>
+  
+          {/* Processor surface texture */}
+          <pattern id="processorPattern" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+            <path d="M 2 2 h 56 v 56 h -56 z" fill="none" stroke="#999" strokeWidth="0.5" />
+            <path d="M 10 2 v 56 M 20 2 v 56 M 30 2 v 56 M 40 2 v 56 M 50 2 v 56" 
+                  stroke="#999" strokeWidth="0.2" />
+            <path d="M 2 10 h 56 M 2 20 h 56 M 2 30 h 56 M 2 40 h 56 M 2 50 h 56" 
+                  stroke="#999" strokeWidth="0.2" />
+          </pattern>
+  
+          {/* Text effects */}
+          <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#0B486B">
+              <animate attributeName="stopColor" 
+                values="#0B486B; #3494E6; #0B486B"
+                dur="4s" repeatCount="indefinite" />
+            </stop>
+            <stop offset="100%" stopColor="#4A90E2">
+              <animate attributeName="stopColor" 
+                values="#4A90E2; #79CEDC; #4A90E2"
+                dur="4s" repeatCount="indefinite" />
+            </stop>
+          </linearGradient>
+  
+          {/* Neon glow for text */}
+          <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feFlood result="flood" floodColor="#4a90e2" floodOpacity=".3"/>
+            <feComposite in="flood" result="mask" in2="SourceGraphic" operator="in"/>
+            <feGaussianBlur in="mask" result="blurred" stdDeviation="3"/>
+            <feMerge>
+              <feMergeNode in="blurred"/>
+              <feMergeNode in="blurred"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+  
+          {/* Circuit pattern for text background */}
+          <pattern id="textCircuit" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 5 10 h 10 M 10 5 v 10" stroke="#4a90e2" strokeWidth="0.5" opacity="0.3"/>
+            <circle cx="10" cy="10" r="1" fill="#4a90e2" opacity="0.3"/>
+          </pattern>
+  
+          {/* Text texture */}
+          <pattern id="textTexture" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+            <path d="M 0 0 L 4 4 M 4 0 L 0 4" stroke="#fff" strokeWidth="0.5" opacity="0.1"/>
+          </pattern>
+        </defs>
+  
+        {/* Main CPU Component */}
+        <g transform="translate(40, 60)">
+          {/* CPU Base */}
+          <rect x="0" y="0" width="80" height="80" rx="5" 
+                fill="url(#metallicGradient)" 
+                stroke="#999" 
+                strokeWidth="1.5" />
+          
+          {/* Processor Surface */}
+          <rect x="5" y="5" width="70" height="70" 
+                fill="url(#processorPattern)" />
+  
+          {/* CPU Pins */}
+          {[...Array(8)].map((_, i) => (
+            <g key={`pins-${i}`}>
+              <rect x={10 + i * 9} y="-5" width="2" height="5" fill="#888" />
+              <rect x={10 + i * 9} y="80" width="2" height="5" fill="#888" />
+              <rect x="-5" y={10 + i * 9} width="5" height="2" fill="#888" />
+              <rect x="80" y={10 + i * 9} width="5" height="2" fill="#888" />
+            </g>
+          ))}
+  
+          {/* Processing Core */}
+          <circle cx="40" cy="40" r="15" fill="url(#textGradient)" fillOpacity="0.7">
+            <animate attributeName="r"
+                     values="15;17;15"
+                     dur="2s"
+                     repeatCount="indefinite"/>
+          </circle>
+        </g>
+  
+        {/* Advanced Text Treatment */}
+        <g transform="translate(140, 105)">
+          {/* Text Background Elements */}
+          <rect x="0" y="-40" width="220" height="60" fill="url(#textCircuit)" opacity="0.1"/>
+          
+          {/* Main Text with Effects */}
+          <text className="font-mono" fontSize="48" fontWeight="900">
+            {/* Decorative underline */}
+            <path d="M 0 10 H 200" stroke="url(#textGradient)" strokeWidth="2" strokeDasharray="1 2">
+              <animate attributeName="strokeDashoffset"
+                       values="3;0"
+                       dur="1s"
+                       repeatCount="indefinite"/>
+            </path>
+            
+            {/* CPU Text */}
+            <tspan x="0" fill="url(#textGradient)" filter="url(#neonGlow)">CPU</tspan>
+            
+            {/* Sim Text with different effect */}
+            <tspan x="90" fill="url(#textGradient)" filter="url(#neonGlow)">
+              Sim
+              <animate attributeName="fillOpacity"
+                       values="0.8;1;0.8"
+                       dur="2s"
+                       repeatCount="indefinite"/>
+            </tspan>
+          </text>
+  
+          {/* Animated Tech Accents */}
+          <g stroke="url(#textGradient)" strokeWidth="0.5">
+            <path d="M 0 -20 L 220 -20" strokeDasharray="2 2">
+              <animate attributeName="strokeDashoffset"
+                       values="4;0"
+                       dur="1s"
+                       repeatCount="indefinite"/>
+            </path>
+            <path d="M 0 20 L 220 20" strokeDasharray="2 2">
+              <animate attributeName="strokeDashoffset"
+                       values="4;0"
+                       dur="1s"
+                       repeatCount="indefinite"/>
+            </path>
+          </g>
+        </g>
+  
+        {/* Circuit Traces */}
+        <g transform="translate(320, 70)" stroke="url(#textGradient)" strokeWidth="0.75" fill="none">
+          {[...Array(3)].map((_, i) => (
+            <path key={`circuit-${i}`}
+                  d={`M 0 ${i * 20} Q 20 ${i * 20}, 20 ${i * 20 + 10} T 40 ${i * 20 + 20}`}
+                  strokeDasharray="4 2">
+              <animate attributeName="strokeDashoffset"
+                       values="6;0"
+                       dur={`${1 + i * 0.2}s`}
+                       repeatCount="indefinite"/>
+            </path>
+          ))}
+        </g>
+      </svg>
+    );
+  };
+  
   return (
-    <svg viewBox="0 0 300 150" className="w-64 h-32">
-      {/* Gradient and Shadow Definitions */}
-      <defs>
-        <linearGradient id="processGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#3494E6" stopOpacity="1" />
-          <stop offset="100%" stopColor="#EC6EAD" stopOpacity="1" />
-        </linearGradient>
-        
-        <filter id="logoShadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur in="SourceAlpha" stdDeviation="4" />
-          <feOffset dx="4" dy="4" result="offsetblur"/>
-          <feFlood floodColor="rgba(0,0,0,0.3)"/>
-          <feComposite in2="offsetblur" operator="in"/>
-          <feMerge>
-            <feMergeNode/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-      </defs>
-
-      {/* Main Logo Text with Advanced Effects */}
-      <text 
-        x="170" 
-        y="100" 
-        textAnchor="middle" 
-        fontSize="70" 
-        fontWeight="bold" 
-        fill="url(#processGradient)"
-        strokeWidth="2"
-        stroke="rgba(255,255,255,0.3)"
-      >
-      CPUSim
-      </text>
-
-      {/* Animated Circuit-like Elements */}
-      <path 
-        d="M 50 30 L 80 30 Q 90 30, 90 40 L 90 60 Q 90 70, 100 70 L 200 70 Q 210 70, 210 60 L 210 40 Q 210 30, 220 30 L 250 30" 
-        fill="none" 
-        stroke="rgba(52,148,230,0.3)" 
-        strokeWidth="3" 
-        strokeDasharray="10 5"
-      >
-        <animate 
-          attributeName="stroke-dashoffset" 
-          values="30;0" 
-          dur="3s" 
-          repeatCount="indefinite"
-        />
-      </path>
-      
-      {/* Circuit Points */}
-      {[50, 100, 200, 250].map((x, index) => (
-        <circle 
-          key={index} 
-          cx={x} 
-          cy="30" 
-          r="5" 
-          fill="rgba(52,148,230,0.6)" 
-        />
-      ))}
-    </svg>
-  );
-};
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 p-6">
-      <div className="container mx-auto bg-white shadow-2xl rounded-2xl p-8 space-y-6">
+    <AdvancedCPUBackground>
+    <div className="min-h-screen p-6">
+      <div className="container mx-auto bg-white/90 backdrop-blur-lg shadow-2xl rounded-2xl p-8 space-y-6">
         {/* Advanced Header */}
         <header className="flex justify-between items-center mb-8">
           <AdvancedLogo />
@@ -225,40 +658,50 @@ const AdvancedLogo = () => {
             </div>
             <select 
               value={algorithm} 
-              onChange={(e) => setAlgorithm(e.target.value)}
+              onChange={(e) => {
+                setAlgorithm(e.target.value);
+                if (e.target.value === 'Round Robin') {
+                  setTimeQuantum(2); // Reset to default when selecting Round Robin
+                }
+              }}
               className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               {['FCFS', 'SJF (Non-Preemptive)', 'SJF (Preemptive)', 'Round Robin', 'Priority'].map(algo => (
                 <option key={algo} value={algo}>{algo}</option>
               ))}
             </select>
+             {/* Add Time Quantum Input for Round Robin */}
+             {showTimeQuantum && (
+              <div className="flex items-center space-x-2">
+                <label className="text-gray-700">Time Quantum:</label>
+                <input
+                  type="number"
+                  value={timeQuantum}
+                  onChange={(e) => setTimeQuantum(Math.max(1, Math.min(20, Number(e.target.value))))}
+                  className="w-20 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                  max="20"
+                />
+              </div>
+            )}
           </div>
         </header>
 
-        {/* Advanced Processes Table */}
+        {/* Update the table structure */}
         <div className="overflow-x-auto">
           <table className="w-full bg-gray-50 rounded-lg">
             <thead className="bg-blue-100">
               <tr>
-                {advancedMode && <th className="p-3 text-left">Select</th>}
                 <th className="p-3 text-left">Process ID</th>
                 <th className="p-3 text-left">Arrival Time</th>
                 <th className="p-3 text-left">Burst Time</th>
-                <th className="p-3 text-left">Priority</th>
+                {showPriority && <th className="p-3 text-left">Priority</th>}
                 <th className="p-3 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
               {processes.map((process) => (
                 <tr key={process.id} className="border-b hover:bg-blue-50 transition">
-                  {advancedMode && (
-                    <td className="p-3">
-                      <input 
-                        type="checkbox" 
-                        className="form-checkbox h-5 w-5 text-blue-600"
-                      />
-                    </td>
-                  )}
                   <td className="p-3">{process.id}</td>
                   <td className="p-3">
                     <input 
@@ -267,12 +710,13 @@ const AdvancedLogo = () => {
                       onChange={(e) => {
                         const updatedProcesses = processes.map(p => 
                           p.id === process.id 
-                            ? {...p, arrivalTime: Number(e.target.value)} 
+                            ? {...p, arrivalTime: Math.max(0, Number(e.target.value))} 
                             : p
                         );
                         setProcesses(updatedProcesses);
                       }}
                       className="w-20 p-1 border rounded"
+                      min="0"
                     />
                   </td>
                   <td className="p-3">
@@ -282,29 +726,33 @@ const AdvancedLogo = () => {
                       onChange={(e) => {
                         const updatedProcesses = processes.map(p => 
                           p.id === process.id 
-                            ? {...p, burstTime: Number(e.target.value)} 
+                            ? {...p, burstTime: Math.max(1, Number(e.target.value))} 
                             : p
                         );
                         setProcesses(updatedProcesses);
                       }}
                       className="w-20 p-1 border rounded"
+                      min="1"
                     />
                   </td>
-                  <td className="p-3">
-                    <input 
-                      type="number" 
-                      value={process.priority} 
-                      onChange={(e) => {
-                        const updatedProcesses = processes.map(p => 
-                          p.id === process.id 
-                            ? {...p, priority: Number(e.target.value)} 
-                            : p
-                        );
-                        setProcesses(updatedProcesses);
-                      }}
-                      className="w-20 p-1 border rounded"
-                    />
-                  </td>
+                  {showPriority && (
+                    <td className="p-3">
+                      <input 
+                        type="number" 
+                        value={process.priority} 
+                        onChange={(e) => {
+                          const updatedProcesses = processes.map(p => 
+                            p.id === process.id 
+                              ? {...p, priority: Math.max(1, Number(e.target.value))} 
+                              : p
+                          );
+                          setProcesses(updatedProcesses);
+                        }}
+                        className="w-20 p-1 border rounded"
+                        min="1"
+                      />
+                    </td>
+                  )}
                   <td className="p-3">
                     <button 
                       onClick={() => removeProcess(process.id)}
@@ -370,23 +818,23 @@ const AdvancedLogo = () => {
                     <h4 className="text-gray-600">{metric.label}</h4>
                     <p className={`text-2xl font-bold text-${metric.color}-600`}>
                       {metric.value.toFixed(2)} ms
-                    </p>
+                    </p> 
                   </div>
-                ))}
+                ))} 
               </div>
             </div>
 
             {/* Advanced Process Visualization */}
             <ProcessGanttChart 
               processes={processes} 
-              simulationResults={simulationResults} 
+              simulationResults={simulationResults}
+              algorithm={algorithm}
             />
           </div>
         )}
       </div>
     </div>
+     </AdvancedCPUBackground>
   );
 };
-
-
 export default CPUSchedulerSimulator;
