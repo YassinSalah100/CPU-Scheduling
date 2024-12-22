@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {  BarChart3, Play,Plus, Minus, Save, FileText } from 'lucide-react';
+import {  BarChart3, Play,Plus, Minus, Save, FileText,GripVertical, Check,Pencil  } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import AdvancedCPUBackground from './AdvancedCPUBackground';
 
@@ -411,10 +411,54 @@ const CPUSchedulerSimulator = () => {
   const [isSimulating, setIsSimulating] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [timeQuantum, setTimeQuantum] = useState(2); // Add time quantum state
+  const [editingId, setEditingId] = useState(null);
+const [draggedProcess, setDraggedProcess] = useState(null);
 
    // Add this new constant
    const showPriority = algorithm === 'Priority';
    const showTimeQuantum = algorithm === 'Round Robin'; // Add this line
+   const handleDragStart = (process) => {
+    setDraggedProcess(process);
+  };
+  
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (!draggedProcess) return;
+    
+    const newProcesses = [...processes];
+    const draggedIndex = processes.findIndex(p => p.id === draggedProcess.id);
+    
+    if (draggedIndex !== index) {
+      // Remove dragged item
+      newProcesses.splice(draggedIndex, 1);
+      // Insert at new position
+      newProcesses.splice(index, 0, draggedProcess);
+      setProcesses(newProcesses);
+    }
+  };
+  
+  const handleDragEnd = () => {
+    setDraggedProcess(null);
+  };
+  
+  const handleIdChange = (oldId, newId) => {
+    // Check if new ID already exists
+    if (processes.some(p => p.id === Number(newId))) {
+      alert('Process ID already exists!');
+      return;
+    }
+    
+    const updatedProcesses = processes.map(p => 
+      p.id === oldId ? {...p, id: Number(newId)} : p
+    );
+    setProcesses(updatedProcesses);
+    setEditingId(null);
+  };
+  
+
+   
+
+
 
   // Advanced Simulation Method
   const simulateScheduling = () => {
@@ -457,7 +501,7 @@ const CPUSchedulerSimulator = () => {
     }, 1500);
  };
 
-  // Process Management Functions with Advanced Validation
+  // Process Management 
   const addProcess = () => {
     if (processes.length >= 10) {
       alert('Maximum 10 processes allowed');
@@ -480,6 +524,7 @@ const CPUSchedulerSimulator = () => {
     }
     setProcesses(processes.filter(p => p.id !== id));
   };
+
 
   // Advanced Logo with Animated Gradient
   
@@ -687,86 +732,241 @@ const CPUSchedulerSimulator = () => {
           </div>
         </header>
 
-        {/* Update the table structure */}
-        <div className="overflow-x-auto">
-          <table className="w-full bg-gray-50 rounded-lg">
-            <thead className="bg-blue-100">
-              <tr>
-                <th className="p-3 text-left">Process ID</th>
-                <th className="p-3 text-left">Arrival Time</th>
-                <th className="p-3 text-left">Burst Time</th>
-                {showPriority && <th className="p-3 text-left">Priority</th>}
-                <th className="p-3 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {processes.map((process) => (
-                <tr key={process.id} className="border-b hover:bg-blue-50 transition">
-                  <td className="p-3">{process.id}</td>
-                  <td className="p-3">
-                    <input 
-                      type="number" 
-                      value={process.arrivalTime} 
-                      onChange={(e) => {
-                        const updatedProcesses = processes.map(p => 
-                          p.id === process.id 
-                            ? {...p, arrivalTime: Math.max(0, Number(e.target.value))} 
-                            : p
-                        );
-                        setProcesses(updatedProcesses);
-                      }}
-                      className="w-20 p-1 border rounded"
-                      min="0"
-                    />
-                  </td>
-                  <td className="p-3">
-                    <input 
-                      type="number" 
-                      value={process.burstTime} 
-                      onChange={(e) => {
-                        const updatedProcesses = processes.map(p => 
-                          p.id === process.id 
-                            ? {...p, burstTime: Math.max(1, Number(e.target.value))} 
-                            : p
-                        );
-                        setProcesses(updatedProcesses);
-                      }}
-                      className="w-20 p-1 border rounded"
-                      min="1"
-                    />
-                  </td>
-                  {showPriority && (
-                    <td className="p-3">
-                      <input 
-                        type="number" 
-                        value={process.priority} 
-                        onChange={(e) => {
-                          const updatedProcesses = processes.map(p => 
-                            p.id === process.id 
-                              ? {...p, priority: Math.max(1, Number(e.target.value))} 
-                              : p
-                          );
-                          setProcesses(updatedProcesses);
-                        }}
-                        className="w-20 p-1 border rounded"
-                        min="1"
-                      />
-                    </td>
-                  )}
-                  <td className="p-3">
-                    <button 
-                      onClick={() => removeProcess(process.id)}
-                      className="text-red-500 hover:bg-red-100 p-2 rounded"
-                    >
-                      <Minus size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+         {/* Update the table structure */}
+         <div className="overflow-x-auto rounded-xl shadow-2xl border border-blue-200/50 relative">
+  {/* Decorative CPU circuit patterns */}
+  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_120%,rgba(120,180,255,0.1),transparent)]"></div>
+    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl"></div>
+    <div className="absolute bottom-0 left-0 w-40 h-40 bg-purple-500/5 rounded-full blur-3xl"></div>
+    {Array.from({ length: 8 }).map((_, i) => (
+      <div key={i} 
+           className="absolute h-px bg-gradient-to-r from-transparent via-blue-200/20 to-transparent" 
+           style={{ 
+             top: `${i * 15}%`, 
+             left: 0, 
+             right: 0,
+             transform: `translateY(${Math.sin(i) * 10}px)`,
+             opacity: 0.5 
+           }}>
+      </div>
+    ))}
+  </div>
 
+  <table className="w-full bg-white/80 backdrop-blur-md relative">
+    <thead>
+      <tr className="bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950">
+        <th className="w-10 p-4">
+          <div className="relative w-4 h-4">
+            <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-25"></div>
+            <div className="relative w-4 h-4 bg-blue-400 rounded-full animate-pulse"></div>
+          </div>
+        </th>
+        {[
+          { icon: "green", title: "Process ID", subtitle: "CPU Thread Identifier" },
+          { icon: "yellow", title: "Arrival Time", subtitle: "Clock Cycle Entry" },
+          { icon: "red", title: "Burst Time", subtitle: "Execution Duration" },
+          ...(showPriority ? [{ icon: "purple", title: "Priority", subtitle: "Thread Weight" }] : []),
+          { icon: "blue", title: "Process Control", subtitle: "Thread Management" }
+        ].map((header, index) => (
+          <th key={index} className="p-4 text-left text-white font-bold">
+            <div className="flex items-center space-x-3">
+              <div className={`relative w-10 h-10 rounded-lg bg-gradient-to-br from-${header.icon}-500/20 to-transparent border border-${header.icon}-400/20 backdrop-blur-sm`}>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.2),transparent)]"></div>
+                <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-${header.icon}-400 rounded-full`}>
+                  <div className={`absolute inset-0 bg-${header.icon}-400 rounded-full animate-ping opacity-75`}></div>
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium tracking-wider">{header.title}</span>
+                <span className="text-xs text-blue-200/80 font-light">{header.subtitle}</span>
+              </div>
+            </div>
+          </th>
+        ))}
+      </tr>
+    </thead>
+    <tbody className="divide-y divide-blue-100/50">
+      {processes.map((process, index) => (
+        <tr 
+          key={process.id} 
+          className={`group transition-all duration-300 ${
+            draggedProcess?.id === process.id 
+              ? 'opacity-50 bg-blue-50/50' 
+              : 'hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent'
+          }`}
+          draggable
+          onDragStart={() => handleDragStart(process)}
+          onDragOver={(e) => handleDragOver(e, index)}
+          onDragEnd={handleDragEnd}
+        >
+          <td className="px-4 py-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-100/50 to-transparent border border-blue-200/50 group-hover:border-blue-300/50 transition-all duration-300 shadow-inner">
+              <GripVertical className="cursor-move text-blue-600/75 group-hover:text-blue-700 transform group-hover:scale-110 transition-all duration-300" size={16} />
+            </div>
+          </td>
+          <td className="p-4">
+            {editingId === process.id ? (
+              <div className="flex items-center space-x-2">
+                <div className="relative">
+                  <input
+                    type="number"
+                    className="w-24 p-2 pl-10 border border-blue-200 rounded-lg bg-white/90 backdrop-blur-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-300"
+                    value={process.id}
+                    onChange={(e) => {
+                      const newId = Math.max(1, parseInt(e.target.value) || 1);
+                      const updatedProcesses = processes.map(p =>
+                        p.id === process.id ? {...p, id: newId} : p
+                      );
+                      setProcesses(updatedProcesses);
+                    }}
+                    min="1"
+                  />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                    <div className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setEditingId(null)}
+                  className="flex items-center justify-center w-8 h-8 text-green-500 hover:text-green-600 rounded-lg hover:bg-green-100 transition-all duration-300"
+                >
+                  <Check size={16} className="transform hover:scale-110 transition-transform duration-300" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-3">
+                <div className="relative flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-green-100/50 to-transparent border border-green-200/50 shadow-inner">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.5),transparent)]"></div>
+                  <span className="text-green-700 font-bold text-lg">{process.id}</span>
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full">
+                    <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-75"></div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setEditingId(process.id)}
+                  className="text-blue-500 hover:text-blue-600 p-2 rounded-lg hover:bg-blue-100/50 opacity-0 group-hover:opacity-100 transition-all duration-300 transform hover:scale-110"
+                >
+                  <Pencil size={16} />
+                </button>
+              </div>
+            )}
+          </td>
+          <td className="p-4">
+            <div className="relative">
+              <input 
+                type="number" 
+                value={process.arrivalTime} 
+                onChange={(e) => {
+                  const updatedProcesses = processes.map(p => 
+                    p.id === process.id 
+                      ? {...p, arrivalTime: Math.max(0, Number(e.target.value))} 
+                      : p
+                  );
+                  setProcesses(updatedProcesses);
+                }}
+                className="w-32 p-2 pl-12 border border-yellow-200/75 rounded-lg bg-white/90 backdrop-blur-sm focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 shadow-inner transition-all duration-300"
+                min="0"
+              />
+              <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                <div className="relative w-6 h-6 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                  <svg className="absolute inset-0 w-full h-full animate-spin-slow" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </td>
+          <td className="p-4">
+            <div className="relative">
+              <input 
+                type="number" 
+                value={process.burstTime} 
+                onChange={(e) => {
+                  const updatedProcesses = processes.map(p => 
+                    p.id === process.id 
+                      ? {...p, burstTime: Math.max(1, Number(e.target.value))} 
+                      : p
+                  );
+                  setProcesses(updatedProcesses);
+                }}
+                className="w-32 p-2 pl-12 border border-red-200/75 rounded-lg bg-white/90 backdrop-blur-sm focus:ring-2 focus:ring-red-400 focus:border-red-400 shadow-inner transition-all duration-300"
+                min="1"
+              />
+              <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                <div className="relative w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
+                  <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                  <div className="absolute inset-0 border-2 border-red-400/50 rounded-full animate-ping"></div>
+                </div>
+              </div>
+            </div>
+          </td>
+          {showPriority && (
+            <td className="p-4">
+              <div className="relative">
+                <input 
+                  type="number" 
+                  value={process.priority} 
+                  onChange={(e) => {
+                    const updatedProcesses = processes.map(p => 
+                      p.id === process.id 
+                        ? {...p, priority: Math.max(1, Number(e.target.value))} 
+                        : p
+                    );
+                    setProcesses(updatedProcesses);
+                  }}
+                  className="w-32 p-2 pl-12 border border-purple-200/75 rounded-lg bg-white/90 backdrop-blur-sm focus:ring-2 focus:ring-purple-400 focus:border-purple-400 shadow-inner transition-all duration-300"
+                  min="1"
+                />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                  <div className="relative w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                    <div className="absolute inset-0 border-2 border-purple-400/50 rounded-full animate-ping"></div>
+                  </div>
+                </div>
+              </div>
+            </td>
+          )}
+          <td className="p-4">
+            <div className="flex items-center space-x-4">
+              <button 
+                onClick={() => removeProcess(process.id)}
+                className="flex items-center justify-center w-8 h-8 text-red-500 hover:text-red-600 rounded-lg hover:bg-red-100/50 transition-all duration-300 transform hover:scale-110"
+              >
+                <Minus size={16} />
+              </button>
+              <div className="relative flex items-center space-x-2 bg-gradient-to-r from-blue-50/50 to-transparent px-4 py-2 rounded-full border border-blue-200/50">
+                <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
+                <span className="text-xs text-blue-700 font-medium tracking-wider">
+                  Runtime: {process.burstTime}ms
+                </span>
+                <div className="absolute inset-0 bg-blue-400/10 rounded-full animate-pulse"></div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+  
+  {/* CPU Processing Animation */}
+  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500/20 via-blue-400/40 to-blue-500/20 animate-pulse"></div>
+</div>
+
+{/* Add this to your CSS/styles */}
+<style jsx>{`
+  @keyframes spin-slow {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .animate-spin-slow {
+    animation: spin-slow 3s linear infinite;
+  }
+`}</style>
         {/* Advanced Action Buttons */}
         <div className="flex justify-between items-center mt-6">
           <div className="flex space-x-4">

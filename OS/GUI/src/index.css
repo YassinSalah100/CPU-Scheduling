@@ -14,3 +14,19 @@ code {
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+.animate-spin-slow {
+  animation: spin 3s linear infinite;
+}
+
+.animate-processing-bar {
+  animation: processing-bar 2s linear infinite;
+}
+
+@keyframes processing-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
