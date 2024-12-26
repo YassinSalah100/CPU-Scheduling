@@ -76,6 +76,7 @@ int main() {
     }
   } while (n <= 0);
   
+  //2D array  {Process number   Arrival time   Burst time   Completion time   Turnaround time   Waiting time   Idle time}
   vector<vector<int>> processes(n, vector<int>(7));
 
   for (int i = 0; i < n; i++) {
